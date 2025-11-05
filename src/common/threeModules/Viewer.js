@@ -96,8 +96,16 @@ export default class Viewer {
     animate()
 
     window.addEventListener('resize', () => {
-      const width = this.viewerDom.clientWidth
-      const height = this.viewerDom.clientHeight
+      const width = this.viewerDom?.clientWidth || 0
+      const height = this.viewerDom?.clientHeight || 0
+
+      if (
+        !this.renderer ||
+        !this.camera ||
+        !this.labelRenderer ||
+        !this.css3DRenderer
+      )
+        return
 
       this.camera.aspect = width / height
       this.camera.updateProjectionMatrix()

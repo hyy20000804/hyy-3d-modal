@@ -1,5 +1,5 @@
 #container {
-  height: calc(100%);
+  height: calc(100vh - 75px);
   width: calc(100%);
   overflow: hidden;
   background-color: #f0f0f0;
@@ -15,33 +15,6 @@
   left: 0px;
   z-index: 100;
   visibility: hidden;
-}
-
-.jindu-con {
-  width: 300px;
-  height: 10px;
-  border-radius: 50px;
-  background-color: white;
-  margin-top: 10px;
-  overflow: hidden;
-}
-
-#jindu {
-  height: inherit;
-  background-color: #007bff;
-  width: 0;
-}
-
-#jindu-text-con {
-  width: 300px;
-  position: absolute;
-  left: 0;
-  right: 0;
-  margin: 0 auto;
-  top: 15%;
-  text-align: center;
-  background-color: rgba(255, 255, 255, 0.5);
-  padding: 10px;
 }
 
 :deep(.label) {
@@ -75,4 +48,63 @@
     transform: scale(1.2);
     color: lighten(#00ffff, 10%);
   }
+}
+
+/* 浮动按钮 */
+.light-handle {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  padding: 10px;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.15);
+  transition: 0.2s;
+}
+.light-handle:hover {
+  transform: scale(1.05);
+}
+
+/* 漂浮面板样式 */
+.light-panel {
+  position: absolute;
+  top: 5%;
+  right: 2%;
+  width: 15%;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 14px 16px;
+  z-index: 100;
+  user-select: none;
+  backdrop-filter: blur(8px);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.slider-item {
+  margin: 10px 0;
+}
+
+/* 动画 */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.3s ease;
+}
+.fade-slide-enter-from,
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.fade-slide-leave-active {
+  pointer-events: none; /* 离开动画时禁用点击 */
 }

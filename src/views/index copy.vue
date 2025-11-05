@@ -1,5 +1,11 @@
 <template>
-  <!-- 3D 场景容器 -->
+  <div id="jindu-text-con" v-if="progressBarShow">
+    正在加载模型请稍等：<span id="jindu-text">{{ progressText }}</span>
+    <div class="jindu-con">
+      <div id="jindu" :style="{ width: progressText }"></div>
+    </div>
+  </div>
+
   <div id="container" ref="container">
     <i
       :class="['iconfont', isFull ? 'icon-suoxiao' : 'icon-fangda']"
@@ -7,11 +13,10 @@
       @click="toggleFullScreen"
     ></i>
 
-    <!-- 操作按钮 -->
     <div class="operate-box">
       <el-button type="warning" @click="onReset">场景重置</el-button>
       <el-button type="warning" @click="onChangeTime">{{ timeText }}</el-button>
-      <el-button type="warning" @click="onDoor">门禁管理</el-button>
+      <el-button type="warning" @click="onDoor">{{ '门禁管理' }}</el-button>
       <el-button type="warning" @click="lightHandle">灯光调节</el-button>
     </div>
 
@@ -20,10 +25,7 @@
       <div v-if="panelVisible" class="light-panel" @click.stop>
         <div class="panel-header">
           <span>灯光调节</span>
-          <!-- Close 图标自闭合 -->
-          <el-icon @click="panelVisible = false">
-            <Close />
-          </el-icon>
+          <el-icon @click="panelVisible = false"><Close /></el-icon>
         </div>
 
         <div class="panel-body">
@@ -55,9 +57,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, defineProps, onUnmounted } from 'vue'
+import { ref, onMounted, defineProps, onUnmounted, watch, computed } from 'vue'
 import * as THREE from 'three'
 import Viewer from '@/common/threeModules/Viewer'
+import SkyBoxs from '@/common/threeModules/SkyBoxs'
 import Lights from '@/common/threeModules/Lights'
 import ModelLoader from '@/common/threeModules/ModelLoader'
 import Labels from '@/common/threeModules/Labels'
@@ -84,12 +87,14 @@ let timeen = {}
 let modelLoader = null
 let labelIns = null // 标签实例
 let laboratoryBuild = {}
+let videoTextTure = null // 视频纹理
 let curFloorName = '' // 当前鼠标点击选中的楼层name
 let modelMoveName = '' // 当前鼠标移动过程中选中的模型name
 let selectedFloorName = '' // 已经选中过的楼层name
 let isSplit = false // 楼体是否分层
 let lastIndex // 记录上一次点击的楼层index
 let skyBoxs = null
+const sceneList = ['实验楼']
 const TimeNums = {
   day: '白天模式',
   night: '夜间模式'
@@ -106,8 +111,11 @@ const progressText = ref('0%')
 const progressBarShow = ref(true)
 const isDriver = ref(false)
 const timeText = ref(TimeNums.night)
+const name = ref('')
+const selectedFloor = ref('')
 const isRun = ref(false)
 const isFull = ref(false)
+const addOrUpdateRef = ref()
 
 const toggleFullScreen = () => {
   const container = document.getElementById('container')
@@ -182,6 +190,41 @@ const updateDirectionalLight = val => {
   if (directionalLight) directionalLight.intensity = val
 }
 
+// const init = async () => {
+//   viewer = new Viewer('container')
+//   skyBoxs = new SkyBoxs(viewer) // 创建天空盒
+//   viewer.camera.position.set(17, 10, 52)
+//   viewer.controls.maxPolarAngle = Math.PI / 2.1 //  90度，防止相机钻到地下
+//   viewer.renderer.shadowMap.enabled = true
+//   viewer.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+
+//   // 限制缩放
+//   viewer.controls.minDistance = 20
+//   viewer.controls.maxDistance = 150
+
+//   const lights = new Lights(viewer)
+//   const ambientLight = lights.addAmbientLight() // 添加环境光
+//   ambientLight.setOption({
+//     color: 0xffffff,
+//     intensity: 5 // 环境光强度
+//   })
+//   ambientLight.light.name = 'AmbientLight'
+//   // 添加平行光
+//   lights.addDirectionalLight([100, 100, -10], {
+//     color: 'rgb(253,253,253)',
+//     intensity: 3,
+//     castShadow: true // 是否投射阴影
+//   })
+//   const spotLights = new THREE.Group()
+//   spotLights.name = 'SpotLights'
+//   spotLights.add(initSpotLight(10, 32, -30))
+//   spotLights.add(initSpotLight(-2.5, 32, -30))
+//   spotLights.add(initSpotLight(-15, 32, -30))
+//   spotLights.add(initSpotLight(22.5, 32, -30))
+//   viewer.scene.add(spotLights)
+//   modelLoader = new ModelLoader(viewer)
+//   labelIns = new Labels(viewer)
+// }
 const onChangeTime = () => {
   const ambientLight = viewer.scene.getObjectByName('AmbientLight')
   const directionalLight = viewer.scene.getObjectByProperty(
@@ -207,6 +250,25 @@ const onChangeTime = () => {
       spotLight.visible = false
     })
   }
+}
+
+/**
+ * 加载聚光灯
+ */
+const initSpotLight = (x, y, z) => {
+  const spotLightGroup = new THREE.Group()
+  const spotLight = new THREE.SpotLight()
+  const spotLightHelper = new THREE.SpotLightHelper(spotLight)
+  spotLightGroup.add(spotLight)
+  spotLightGroup.add(spotLightHelper)
+  spotLightGroup.add(spotLight.target)
+  // spotLight.castShadow = true;
+  spotLight.position.set(x, y, z)
+  spotLight.target.position.set(x, y - 2, z - 1)
+  spotLight.penumbra = 0.8
+  spotLight.visible = false
+  spotLightHelper.visible = false
+  return spotLightGroup
 }
 
 /**
@@ -249,53 +311,56 @@ const loadPeople = () => {
 /**
  * 加载路灯
  */
-const loadLamp = (
-  url = '/glb/lightpostDouble.glb',
-  positions = [
-    [23, 0, 29],
-    [20, 0, 29],
-    [17, 0, 29],
-    [14, 0, 29],
-    [9, 0, 29],
-    [6, 0, 29]
-  ],
-  scale = [1, 3, 1]
-) => {
-  return new Promise((resolve, reject) => {
-    const loader = new GLTFLoader()
-    loader.load(
-      url,
-      gltf => {
-        let baseMesh = null
-        gltf.scene.traverse(child => {
-          if (child.isMesh && !baseMesh) baseMesh = child
-        })
+const loadLamp = () => {
+  const loader = new GLTFLoader()
+  loader.load('/glb/lightpostDouble.glb', gltf => {
+    const gltfScene = gltf.scene
+    let baseMesh = null
 
-        if (!baseMesh) return reject(new Error('未找到 baseMesh'))
+    // 从模型中找出第一个 Mesh（可根据你实际结构更精细地指定）
+    gltfScene.traverse(child => {
+      if (child.isMesh && !baseMesh) {
+        baseMesh = child.clone()
+      }
+    })
 
-        const instancedMesh = new THREE.InstancedMesh(
-          baseMesh.geometry,
-          baseMesh.material,
-          positions.length
-        )
-        instancedMesh.castShadow = true
-        instancedMesh.receiveShadow = true
-        instancedMesh.name = '路灯组'
+    if (!baseMesh) {
+      console.error('未找到 baseMesh')
+      return
+    }
 
-        const dummy = new THREE.Object3D()
-        positions.forEach((pos, i) => {
-          dummy.position.set(...pos)
-          dummy.scale.set(...scale)
-          dummy.updateMatrix()
-          instancedMesh.setMatrixAt(i, dummy.matrix)
-        })
-
-        viewer.scene.add(instancedMesh)
-        resolve(instancedMesh)
-      },
-      undefined,
-      err => reject(err)
+    // 创建 InstancedMesh（6个实例）
+    const count = 6
+    const instancedMesh = new THREE.InstancedMesh(
+      baseMesh.geometry,
+      baseMesh.material,
+      count
     )
+
+    instancedMesh.castShadow = true
+    instancedMesh.receiveShadow = true
+    instancedMesh.name = '路灯组'
+
+    // 设置每个实例的位置矩阵
+    const positions = [
+      [23, 0, 29],
+      [20, 0, 29],
+      [17, 0, 29],
+      [14, 0, 29],
+      [9, 0, 29],
+      [6, 0, 29]
+    ]
+
+    const dummy = new THREE.Object3D()
+    positions.forEach((pos, i) => {
+      dummy.position.set(...pos)
+      dummy.scale.set(1, 3, 1)
+      dummy.updateMatrix()
+      instancedMesh.setMatrixAt(i, dummy.matrix)
+    })
+
+    // 加到场景中
+    viewer.scene.add(instancedMesh)
   })
 }
 
@@ -411,6 +476,7 @@ const moveOnCurve = model => {
     }
   }
 }
+
 /** * 快递车行驶轨迹 */
 const makeCurve = () => {
   // 从一系列的点创建一条平滑的三维样条曲线
@@ -457,6 +523,10 @@ const loadOfficeBuild = () => {
           item.name = 6
         }
         item.name--
+      })
+
+      model.object.children.forEach(child => {
+        console.log('一级子节点:', child.name, model.object.children)
       })
 
       officeBuild.object.children
@@ -527,11 +597,11 @@ const officeMouseMove = () => {
           officeBuild.object.getObjectByName(item).traverse(child => {
             if (child.isMesh) {
               child.material = new THREE.MeshStandardMaterial({
-                color: 0x000000, // 十六进制数字，不要加引号
+                color: 0x000000, // 设为黑色，避免底色影响
                 transparent: true,
-                opacity: 0.6,
-                emissive: new THREE.Color(0x000000), // 修正这里
-                emissiveIntensity: 3
+                opacity: 0.6, // 完全透明
+                emissive: new THREE.Color('0x000000'), // 发光颜色
+                emissiveIntensity: 3 // 发光强度
               })
             }
           })
@@ -681,6 +751,14 @@ const loadLaboratoryBuild = () => {
         item.geometry.applyMatrix4(item.matrixWorld)
         geometryArr.push(item.geometry)
         materialArr.push(item.material)
+
+        // // 置灰
+        // instancedMesh.material.color.set(0x808080)
+        // instancedMesh.material.transparent = true
+        // instancedMesh.material.opacity = 0.1
+
+        // 恢复原色
+        // instancedMesh.material.color.set(0xffffff)
       }
     })
     const geometryMerged = BufferGeometryUtils.mergeGeometries(
@@ -731,6 +809,71 @@ const loadTree = () => {
     model.startAnimal()
 
     treeModel = model.object
+    updateTreeColor()
+
+    addVerticalProgressBar()
+  })
+}
+
+/** * 手绘进度条 */
+
+let progressBar, progressBg
+const progressHeight = 10 // 固定高度
+const progressWidth = 0.1 // 进度条宽度
+
+function addVerticalProgressBar () {
+  // 背景条
+  const bgGeometry = new THREE.PlaneGeometry(progressWidth, progressHeight)
+  const bgMaterial = new THREE.MeshBasicMaterial({
+    color: 0x444444,
+    side: THREE.DoubleSide
+  })
+  progressBg = new THREE.Mesh(bgGeometry, bgMaterial)
+
+  // 绿色进度条
+  const barGeometry = new THREE.PlaneGeometry(progressWidth, progressHeight)
+  const barMaterial = new THREE.MeshBasicMaterial({
+    color: 0x00ff00,
+    side: THREE.DoubleSide
+  })
+  progressBar = new THREE.Mesh(barGeometry, barMaterial)
+
+  // 设置锚点在底部
+  barGeometry.translate(0, -progressHeight / 2, 0)
+
+  // 相对树的位置（右侧）
+  const offsetX = 5
+  const offsetY = progressHeight / 2
+  const offsetZ = 0
+
+  progressBg.position.set(offsetX, offsetY, offsetZ)
+  progressBar.position.set(offsetX, offsetY, offsetZ + 0.01)
+
+  // 添加到树
+  treeModel.add(progressBg)
+  treeModel.add(progressBar)
+}
+// 每帧保持朝向摄像机
+// 在动画循环中让它一直面向相机
+// function updateProgressBarBillboard () {
+// 	if (progressBg && progressBar) {
+// 		progressBg.lookAt(camera.position)
+// 		progressBar.lookAt(camera.position)
+// 	}
+// }
+
+/**
+ * 改变树的颜色
+ */
+const updateTreeColor = () => {
+  if (!treeModel) return
+  treeModel.traverse(child => {
+    if (child.isMesh) {
+      child.material = child.material.clone()
+      child.material.color.set(0xffffff)
+      child.material.transparent = false
+      child.material.opacity = 1
+    }
   })
 }
 
@@ -811,8 +954,12 @@ const onReset = () => {
  */
 
 const startPos = new THREE.Vector3(0, 0, 0) // 起点
+const targetPos = new THREE.Vector3(13, 0, 13) // 终点
+const isAtTarget = ref(false) // true=在目标点，false=在起点
 
+// 点击门禁事件
 const onDoor = () => {
+  // 如果当前正在跑，阻止重复点击
   if (isRun.value) return
   isRun.value = true
 
@@ -823,22 +970,20 @@ const onDoor = () => {
     return
   }
 
-  const targetPos =
-    person.position.distanceTo(startPos) < 0.1
-      ? new THREE.Vector3(13, 0, 13) // 去门口
-      : startPos.clone() // 返回原位
+  const currentPos = person.position.clone()
+  const isAtStart = currentPos.distanceTo(startPos) < 0.1
 
-  const targetRotationY = targetPos.equals(startPos) ? 0 : Math.PI
+  const targetPos = isAtStart
+    ? new THREE.Vector3(13, 0, 13) // 去门口
+    : startPos.clone() // 返回原位
 
   personModel.startAnimal(6) // walk
 
   // 清理旧动画
-  gsap.killTweensOf([
-    person.position,
-    person.rotation,
-    viewer.camera.position,
-    viewer.controls.target
-  ])
+  gsap.killTweensOf(person.position)
+  gsap.killTweensOf(person.rotation)
+  gsap.killTweensOf(viewer.camera.position)
+  gsap.killTweensOf(viewer.controls.target)
 
   const tl = gsap.timeline({
     onComplete: () => {
@@ -848,18 +993,50 @@ const onDoor = () => {
     }
   })
 
-  const duration = 3
-  const ease = 'power1.inOut'
+  // 人物移动
+  tl.to(person.position, {
+    x: targetPos.x,
+    y: targetPos.y,
+    z: targetPos.z,
+    duration: 3,
+    ease: 'power1.inOut'
+  })
 
-  // 人物移动 + 相机跟随
-  tl.to(person.position, { ...targetPos, duration, ease })
-  tl.to(person.rotation, { y: targetRotationY, duration: 1, ease }, 0)
+  // 人物转向
   tl.to(
-    viewer.camera.position,
-    { x: targetPos.x, y: targetPos.y + 2, z: targetPos.z + 5, duration, ease },
+    person.rotation,
+    {
+      y: isAtStart ? Math.PI : 0, // 返回时转回原方向
+      duration: 1,
+      ease: 'power1.inOut'
+    },
     0
   )
-  tl.to(viewer.controls.target, { ...targetPos, duration, ease }, 0)
+
+  // 相机跟随
+  tl.to(
+    viewer.camera.position,
+    {
+      x: targetPos.x,
+      y: targetPos.y + 2,
+      z: targetPos.z + 5,
+      duration: 3,
+      ease: 'power1.inOut'
+    },
+    0
+  )
+
+  tl.to(
+    viewer.controls.target,
+    {
+      x: targetPos.x,
+      y: targetPos.y,
+      z: targetPos.z,
+      duration: 3,
+      ease: 'power1.inOut'
+    },
+    0
+  )
 }
 
 /**
@@ -868,36 +1045,41 @@ const onDoor = () => {
 const loadCar = () => {
   modelLoader.loadModelToScene('/glTF/car13.gltf', model => {
     car = model
-    const obj = model.object
-
-    // 基本属性
-    obj.position.set(11.5, 0, 18)
-    obj.scale.set(1, 1, 1)
-    obj.name = '快递车'
     model.openCastShadow()
     model.openReceiveShadow()
+    model.object.position.set(11.5, 0, 18)
+    model.object.scale.set(1, 1, 1)
+    model.object.name = '快递车'
 
-    // 聚光灯
-    const spotLight = new THREE.SpotLight(0xffffff, 1)
+    const spotLight = new THREE.SpotLight()
+
+    model.object.add(spotLight)
+    model.object.add(spotLight.target)
+
     spotLight.angle = Math.PI / 4
-    spotLight.penumbra = 0.8
     spotLight.position.set(0, 2, 2)
     spotLight.target.position.set(0, 1, 3)
+    spotLight.penumbra = 0.8
+
     spotLight.castShadow = true
-    spotLight.shadow.mapSize.set(1024, 1024)
+    // spotLight.shadow.radius = 5 // PCFSS不支持radius
+    spotLight.shadow.mapSize.width = 1024
+    spotLight.shadow.mapSize.height = 1024
     spotLight.shadow.camera.near = 0.1
     spotLight.shadow.camera.far = 100
-    spotLight.shadow.camera.bias = 0.005
+    spotLight.shadow.camera.bias = 0.005 // 去除摩尔纹、伪影
+
     spotLight.visible = false
 
-    obj.add(spotLight)
-    obj.add(spotLight.target)
-
-    // 标签
-    const box = model.getBox()
+    let boxx = model.getBox()
+    // 加载车的标签
     carLabel = labelIns.addCss2dLabel(
-      { x: box.max.x, y: box.max.y + 2, z: box.max.z },
-      `<span class="label">${obj.name}</span>`
+      {
+        x: boxx.max.x,
+        y: boxx.max.y + 2,
+        z: boxx.max.z
+      },
+      `<span class="label">${model.object.name}</span>`
     )
 
     progressBarShow.value = false
@@ -905,15 +1087,17 @@ const loadCar = () => {
 }
 
 /** * 凤凰 */
-const loadBird = () =>
-  new Promise(resolve => {
+const loadBird = () => {
+  return new Promise(resolve => {
     modelLoader.loadModelToScene('/glb/bird.glb', model => {
       model.openCastShadow()
 
-      // 计算包围盒缩放
+      // 计算包围盒并缩放模型
       const box = new THREE.Box3().setFromObject(model.object)
-      const size = box.getSize(new THREE.Vector3())
-      const scale = 1 / Math.max(size.x, size.y, size.z)
+      const size = new THREE.Vector3()
+      box.getSize(size)
+      const maxDim = Math.max(size.x, size.y, size.z)
+      const scale = 1 / maxDim
       model.object.scale.set(scale, scale, scale)
 
       model.object.position.set(15, 0, 29)
@@ -921,9 +1105,11 @@ const loadBird = () =>
 
       model.startAnimal(0)
 
+      // ✅ 模型加载完成，返回 model
       resolve(model)
     })
   })
+}
 
 // 让一个模型绕另一个模型顺时针旋转
 function makeModelOrbitGSAP (
@@ -932,29 +1118,30 @@ function makeModelOrbitGSAP (
   radius = 5,
   duration = 10
 ) {
-  // 中心点
-  const center = new THREE.Box3()
-    .setFromObject(centerModel.object)
-    .getCenter(new THREE.Vector3())
+  // 获取中心点
+  const center = new THREE.Vector3()
+  new THREE.Box3().setFromObject(centerModel.object).getCenter(center)
 
-  // 角度对象
-  const orbit = { angle: 0 }
+  // 保存一个角度变量
+  const orbitData = { angle: 0 }
 
-  // 创建无限循环动画（顺时针）
-  return gsap.to(orbit, {
+  // 创建无限循环动画（顺时针用负角度）
+  const orbitTween = gsap.to(orbitData, {
     angle: -Math.PI * 2, // 一圈
-    duration, // 一圈用时
+    duration: duration, // 一圈用时（秒）
     repeat: -1, // 无限循环
-    ease: 'none', // 匀速
+    ease: 'none', // 匀速旋转
     onUpdate: () => {
-      const { x: cx, y: cy, z: cz } = center
-      movingModel.object.position.set(
-        cx + radius * Math.cos(orbit.angle),
-        cy,
-        cz + radius * Math.sin(orbit.angle)
-      )
+      movingModel.object.position.x =
+        center.x + radius * Math.cos(orbitData.angle)
+      movingModel.object.position.z =
+        center.z + radius * Math.sin(orbitData.angle)
+      movingModel.object.position.y = center.y // 保持高度
     }
   })
+
+  // 返回动画对象，方便暂停、继续、加速
+  return orbitTween
 }
 
 onMounted(async () => {
