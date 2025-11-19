@@ -1,0 +1,128 @@
+{
+  "id": "5054395",
+  "name": "暖通平台",
+  "font_family": "iconfont",
+  "css_prefix_text": "icon-",
+  "description": "",
+  "glyphs": [
+    {
+      "icon_id": "4421809",
+      "name": "标签",
+      "font_class": "biaoqian",
+      "unicode": "e669",
+      "unicode_decimal": 58985
+    },
+    {
+      "icon_id": "5922020",
+      "name": "重置",
+      "font_class": "zhongzhi",
+      "unicode": "e66a",
+      "unicode_decimal": 58986
+    },
+    {
+      "icon_id": "8936804",
+      "name": "太阳",
+      "font_class": "taiyang",
+      "unicode": "e611",
+      "unicode_decimal": 58897
+    },
+    {
+      "icon_id": "10472076",
+      "name": "夜间",
+      "font_class": "yejian",
+      "unicode": "e600",
+      "unicode_decimal": 58880
+    },
+    {
+      "icon_id": "11041079",
+      "name": "标签",
+      "font_class": "biaoqian1",
+      "unicode": "e61b",
+      "unicode_decimal": 58907
+    },
+    {
+      "icon_id": "11265353",
+      "name": "重置",
+      "font_class": "zhongzhi1",
+      "unicode": "e609",
+      "unicode_decimal": 58889
+    },
+    {
+      "icon_id": "20655284",
+      "name": "行人",
+      "font_class": "hangren",
+      "unicode": "e6b5",
+      "unicode_decimal": 59061
+    },
+    {
+      "icon_id": "24111897",
+      "name": "夜间",
+      "font_class": "yejian1",
+      "unicode": "fc09",
+      "unicode_decimal": 64521
+    },
+    {
+      "icon_id": "30705252",
+      "name": "灯光",
+      "font_class": "dengguang",
+      "unicode": "e649",
+      "unicode_decimal": 58953
+    },
+    {
+      "icon_id": "31320729",
+      "name": "太阳",
+      "font_class": "taiyang1",
+      "unicode": "e62d",
+      "unicode_decimal": 58925
+    },
+    {
+      "icon_id": "34718975",
+      "name": "灯光",
+      "font_class": "dengguang1",
+      "unicode": "e6c7",
+      "unicode_decimal": 59079
+    },
+    {
+      "icon_id": "39038654",
+      "name": "行人",
+      "font_class": "hangren1",
+      "unicode": "e6f1",
+      "unicode_decimal": 59121
+    },
+    {
+      "icon_id": "9273208",
+      "name": "放大",
+      "font_class": "fangda1",
+      "unicode": "e666",
+      "unicode_decimal": 58982
+    },
+    {
+      "icon_id": "24063631",
+      "name": "手",
+      "font_class": "shou1",
+      "unicode": "e664",
+      "unicode_decimal": 58980
+    },
+    {
+      "icon_id": "24709687",
+      "name": "缩小",
+      "font_class": "suoxiao1",
+      "unicode": "e619",
+      "unicode_decimal": 58905
+    },
+    {
+      "icon_id": "34453215",
+      "name": "home-fill",
+      "font_class": "home-fill",
+      "unicode": "e857",
+      "unicode_decimal": 59479
+    },
+    {
+      "icon_id": "34453216",
+      "name": "home",
+      "font_class": "home",
+      "unicode": "e858",
+      "unicode_decimal": 59480
+    }
+  ]
+}

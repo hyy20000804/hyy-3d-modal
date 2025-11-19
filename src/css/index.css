@@ -1,10 +1,14 @@
 #container {
   height: calc(100vh - 75px);
-  width: calc(100%);
+  width: 100%;
   overflow: hidden;
   background-color: #f0f0f0;
-  transition: width 0.3s, height 0.3s;
   position: relative;
+  /*  防止 transition 抖动 */
+  transition: none;
+  /*  强制 GPU 复合层单独渲染 */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 #videoContainer {
   position: absolute;
@@ -30,17 +34,18 @@
   justify-content: center;
 }
 .fullscreen-icon {
-  cursor: pointer;
   font-size: 20px;
   position: absolute;
-  z-index: 100;
+  z-index: 1000;
   top: 15px;
   right: 20px;
-  color: #00ffff;
+  color: #fff;
+  cursor: pointer;
+  user-select: none;
 }
 .fullscreen-icon:hover {
   transform: scale(1.2);
-  color: #33ffff;
+  color: #174cd6;
 }
 /* 浮动按钮 */
 .light-handle {
@@ -95,4 +100,14 @@
 .fade-slide-leave-active {
   pointer-events: none;
   /* 离开动画时禁用点击 */
+}
+#container {
+  position: relative;
+  overflow: hidden;
+}
+#container > div {
+  outline: 1px solid red !important;
+}
+#container > div[style*='position: absolute']:not(.label-panel):not(.light-panel) {
+  background: transparent !important;
 }

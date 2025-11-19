@@ -29,16 +29,6 @@ export default class Viewer {
    *
    * @param {*} id 场景容器id
    */
-  // constructor (id) {
-  //   Cache.enabled = true // 开启缓存
-  //   this.id = id
-  //   this.renderer = undefined
-  //   this.scene = undefined
-  //   this.camera = undefined
-  //   this.controls = undefined
-  //   this.animateEventList = []
-  //   this.#initViewer()
-  // }
 
   constructor (id) {
     Cache.enabled = true
@@ -156,17 +146,14 @@ export default class Viewer {
    * 更新DOM
    */
   #updateDom () {
+    if (!this.renderer || !this.camera || !this.controls) return
     this.controls.update()
-    // this.camera.aspect = this.viewerDom.clientWidth / this.viewerDom.clientHeight // 摄像机视锥体的长宽比，通常是使用画布的宽/画布的高
-    // this.camera.updateProjectionMatrix() // 更新摄像机投影矩阵 在任何参数被改变以后必须被调用,来使得这些改变生效
-    // this.renderer.setSize(this.viewerDom.clientWidth, this.viewerDom.clientHeight) // 每帧设置渲染器的尺寸
-    // this.renderer.setPixelRatio(window.devicePixelRatio) // 每帧设置渲染器的像素比
-    // this.labelRenderer.setSize(this.viewerDom.clientWidth, this.viewerDom.clientHeight) // 每帧设置标签渲染器的尺寸
-    // this.css3DRenderer.setSize(this.viewerDom.clientWidth, this.viewerDom.clientHeight) // 每帧设置标签渲染器的尺寸
 
-    // 只在 窗口大小变化时调用
-    const width = this.viewerDom.clientWidth
-    const height = this.viewerDom.clientHeight
+    const width = this.viewerDom?.clientWidth || 0
+    const height = this.viewerDom?.clientHeight || 0
+
+    if (!width || !height) return
+
     if (this._lastWidth !== width || this._lastHeight !== height) {
       this._lastWidth = width
       this._lastHeight = height
@@ -174,52 +161,23 @@ export default class Viewer {
       this.camera.aspect = width / height
       this.camera.updateProjectionMatrix()
 
-      this.renderer.setSize(width, height)
-      this.labelRenderer.setSize(width, height)
-      this.css3DRenderer.setSize(width, height)
+      if (this.renderer && this.labelRenderer && this.css3DRenderer) {
+        this.renderer.setSize(width, height)
+        this.labelRenderer.setSize(width, height)
+        this.css3DRenderer.setSize(width, height)
+      }
     }
   }
+
   #renderDom () {
-    this.renderer.render(this.scene, this.camera) // 渲染场景
+    this.renderer.render(this.scene, this.camera)
+
     this.labelRenderer.render(this.scene, this.camera) // 渲染2d标签场景
     this.css3DRenderer.render(this.css3dScene, this.camera) // 渲染3d标签场景
   }
   /**
    * 创建初始化场景界面
    */
-  // #initRenderer () {
-  //   // 获取画布dom
-  //   this.viewerDom = document.getElementById(this.id)
-  //   // 初始化渲染器
-  //   this.renderer = new WebGLRenderer({
-  //     // logarithmicDepthBuffer: true, // true/false 表示是否使用对数深度缓冲，true性能不好
-  //     antialias: true, // true/false表示是否开启反锯齿
-  //     alpha: true, // true/false 表示是否可以设置背景色透明
-  //     precision: 'highp', // highp/mediump/lowp 表示着色精度选择
-  //     premultipliedAlpha: true // true/false 表示是否可以设置像素深度（用来度量图像的分辨率）
-  //   })
-  //   this.renderer.clearDepth() // 设置深度缓冲区
-  //   this.renderer.shadowMap.enabled = true // 场景中的阴影自动更新
-  //   this.viewerDom.appendChild(this.renderer.domElement) // 将渲染器添加到画布中
-  //   // 二维标签
-  //   this.labelRenderer = new CSS2DRenderer() // 标签渲染器
-  //   this.labelRenderer.domElement.style.zIndex = 2
-  //   this.labelRenderer.domElement.style.position = 'absolute'
-  //   this.labelRenderer.domElement.style.top = '0px'
-  //   this.labelRenderer.domElement.style.left = '0px'
-  //   this.labelRenderer.domElement.style.pointerEvents = 'none' // 避免HTML标签遮挡三维场景的鼠标事件
-  //   this.viewerDom.appendChild(this.labelRenderer.domElement)
-
-  //   // 三维标签
-  //   this.css3DRenderer = new CSS3DRenderer() // 标签渲染器
-  //   this.css3DRenderer.domElement.style.zIndex = 0
-  //   this.css3DRenderer.domElement.style.position = 'absolute'
-  //   this.css3DRenderer.domElement.style.top = '0px'
-  //   this.css3DRenderer.domElement.style.left = '0px'
-  //   this.css3DRenderer.domElement.style.pointerEvents = 'none' // 避免HTML标签遮挡三维场景的鼠标事件
-  //   this.viewerDom.appendChild(this.css3DRenderer.domElement)
-  // }
-
   #initRenderer () {
     this.viewerDom = document.getElementById(this.id)
 
@@ -382,6 +340,13 @@ export default class Viewer {
       this.renderer.context = null
       this.renderer.domElement = null
       this.renderer = null
+    }
+
+    if (this.renderer && this.renderer.domElement) {
+      this.renderer.domElement.removeEventListener(
+        'click',
+        this._boundClickHandler
+      )
     }
 
     // 销毁标签渲染器（CSS2DRenderer, CSS3DRenderer）

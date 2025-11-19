@@ -2,18 +2,54 @@
   <!-- 3D 场景容器 -->
   <div id="container" ref="container">
     <i
-      :class="['iconfont', isFull ? 'icon-suoxiao' : 'icon-fangda']"
+      :class="['iconfont', isFull ? 'icon-suoxiao1' : 'icon-fangda1']"
       class="fullscreen-icon"
       @click="toggleFullScreen"
+      title="全屏/退出全屏"
     ></i>
 
-    <!-- 操作按钮 -->
-    <div class="operate-box">
-      <el-button type="warning" @click="onReset">场景重置</el-button>
-      <el-button type="warning" @click="onChangeTime">{{ timeText }}</el-button>
-      <el-button type="warning" @click="onDoor">门禁管理</el-button>
-      <el-button type="warning" @click="lightHandle">灯光调节</el-button>
-    </div>
+    <i
+      :class="[
+        'iconfont',
+        timeText == '夜间模式' ? 'icon-taiyang1' : 'icon-yejian'
+      ]"
+      class="fullscreen-icon"
+      style="margin-right: 2%"
+      @click="onChangeTime"
+      title="切换白天/夜间模式"
+    ></i>
+
+    <i
+      :class="['iconfont', 'icon-hangren']"
+      class="fullscreen-icon"
+      style="margin-right: 4%"
+      @click="onDoor"
+      title="人物控制"
+    ></i>
+
+    <i
+      :class="['iconfont', 'icon-biaoqian1']"
+      class="fullscreen-icon"
+      style="margin-right: 6%"
+      @click="labelHandle"
+      title="标签设置"
+    ></i>
+
+    <i
+      :class="['iconfont', 'icon-dengguang1']"
+      class="fullscreen-icon"
+      style="margin-right: 8%"
+      @click="lightHandle"
+      title="光照调节"
+    ></i>
+
+    <i
+      :class="['iconfont', 'icon-zhongzhi']"
+      class="fullscreen-icon"
+      style="margin-right: 10%"
+      @click="onReset"
+      title="重置场景"
+    ></i>
 
     <!-- 浮动灯光面板 -->
     <transition name="fade-slide">
@@ -51,20 +87,31 @@
         </div>
       </div>
     </transition>
+
+    <Label ref="sonLabel" :viewerRef="viewerRef"></Label>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, defineProps, onUnmounted } from 'vue'
+import { ref, onMounted, defineProps, onUnmounted, nextTick } from 'vue'
 import * as THREE from 'three'
-import Viewer from '@/common/threeModules/Viewer'
-import Lights from '@/common/threeModules/Lights'
-import ModelLoader from '@/common/threeModules/ModelLoader'
-import Labels from '@/common/threeModules/Labels'
+import Viewer from '@/three/threeModules/Viewer'
+import Lights from '@/three/threeModules/Lights'
+import ModelLoader from '@/three/threeModules/ModelLoader'
+import Labels from '@/three/threeModules/Labels'
 import { Water } from 'three/examples/jsm/objects/Water2'
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js'
 import gsap from 'gsap'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
+import SkyBoxs from '@/three/threeModules/SkyBoxs'
+import Label from '@/three/components/color.vue'
+import {
+  CSS2DRenderer,
+  CSS2DObject
+} from 'three/examples/jsm/renderers/CSS2DRenderer.js'
+
+const sonLabel = ref(null)
+const isHighlighted = ref(false)
 
 const props = defineProps({
   initialWidth: String,
@@ -109,6 +156,87 @@ const timeText = ref(TimeNums.night)
 const isRun = ref(false)
 const isFull = ref(false)
 
+/**
+ * 高亮指定模型节点（支持子节点独立颜色）
+ * @param {THREE.Object3D} root 根模型对象
+ * @param {string} targetName 目标节点名称 (如 'b045')
+ * @param {string|number} color 高亮颜色 ('#ff0000' | 'red')
+ * @param {boolean} highlight 是否开启高亮，false 则恢复
+ * @param {string[]} excludeNames 可选，要排除不受影响的子节点名称
+ */
+const highlightModel = (
+  root,
+  targetName,
+  color,
+  highlight,
+  excludeNames = []
+) => {
+  if (!root) return
+
+  root.traverse(obj => {
+    if (obj.name === targetName) {
+      obj.traverse(subObj => {
+        if (subObj.isMesh) {
+          // ❗跳过指定子节点（如 D90_Chilled_Water_Plant_1182）
+          if (excludeNames.includes(subObj.name)) return
+
+          subObj.material = subObj.material.clone()
+
+          if (highlight) {
+            const exists = highlightedMeshes.find(h => h.mesh === subObj)
+            if (!exists) {
+              highlightedMeshes.push({
+                mesh: subObj,
+                originalColor: subObj.material.color.clone(),
+                originalEmissive: subObj.material.emissive
+                  ? subObj.material.emissive.clone()
+                  : null
+              })
+            }
+            subObj.material.color.set(color)
+            if (subObj.material.emissive) subObj.material.emissive.set(color)
+          } else {
+            const info = highlightedMeshes.find(h => h.mesh === subObj)
+            if (info) {
+              subObj.material.color.copy(info.originalColor)
+              if (info.originalEmissive)
+                subObj.material.emissive.copy(info.originalEmissive)
+              else subObj.material.emissive?.setHex(0x000000)
+            }
+          }
+        }
+      })
+    }
+  })
+}
+
+const addTooltipToMesh = (meshName, text) => {
+  const targetMesh = officeBuild.object.getObjectByName(meshName)
+  if (!targetMesh) return
+
+  const labelDiv = document.createElement('div')
+  labelDiv.className = 'model-label'
+  labelDiv.textContent = text
+  Object.assign(labelDiv.style, {
+    fontSize: '14px',
+    color: '#fff',
+    backgroundColor: '#000',
+    padding: '4px 8px',
+    borderRadius: '4px',
+    cursor: 'pointer'
+  })
+
+  const label = new CSS2DObject(labelDiv)
+  targetMesh.add(label)
+
+  // 保存到子组件 sonLabel
+  if (sonLabel.value) sonLabel.value.labels.push(label)
+}
+
+const labelHandle = () => {
+  sonLabel.value.open()
+}
+
 const toggleFullScreen = () => {
   const container = document.getElementById('container')
   if (!container) return
@@ -138,17 +266,41 @@ let directionalLight = null
 const panelVisible = ref(false)
 const ambientIntensity = ref(5)
 const directionalIntensity = ref(3)
+let highlightedMeshes = []
+let labelRenderer = null
+
+const initLabelRenderer = () => {
+  labelRenderer = new CSS2DRenderer()
+
+  const container = document.getElementById('container')
+  const width = container.clientWidth
+  const height = container.clientHeight
+
+  labelRenderer.setSize(width, height)
+  labelRenderer.domElement.style.position = 'absolute'
+  labelRenderer.domElement.style.top = '0'
+  labelRenderer.domElement.style.left = '0'
+  labelRenderer.domElement.style.pointerEvents = 'none'
+  labelRenderer.domElement.style.zIndex = '1' // 确保在 canvas 之上,但在控制按钮之下
+
+  //  添加到 container 而不是 body
+  container.appendChild(labelRenderer.domElement)
+}
 
 // 初始化 Three.js 场景与灯光
 const init = async () => {
   viewer = new Viewer('container')
+
+  initLabelRenderer()
+
+  skyBoxs = new SkyBoxs(viewer) // 创建天空盒
 
   // 相机与控制配置
   viewer.camera.position.set(17, 10, 52)
   viewer.controls.maxPolarAngle = Math.PI / 2.1
   viewer.renderer.shadowMap.enabled = true
   viewer.renderer.shadowMap.type = THREE.PCFSoftShadowMap
-  viewer.controls.minDistance = 20
+  // viewer.controls.minDistance = 20
   viewer.controls.maxDistance = 150
 
   // 创建灯光
@@ -166,6 +318,8 @@ const init = async () => {
 
   modelLoader = new ModelLoader(viewer)
   labelIns = new Labels(viewer)
+
+  viewer.renderer.autoClear = true
 }
 
 // 控制面板显示
@@ -465,6 +619,10 @@ const loadOfficeBuild = () => {
           v.name = 'zuo' + v.name
         })
 
+      // 绿色
+      // highlightModel(officeBuild.object, 'zuo0', '#75b05e', true)
+      // highlightModel(officeBuild.object, 'zuo4', '#75b05e', true)
+
       officeBuild.forEach(child => {
         if (child.isMesh) {
           child.frustumCulled = false // 关闭投射阴影
@@ -478,14 +636,17 @@ const loadOfficeBuild = () => {
       oldOfficeBuild = officeBuild.object.clone()
       const buildBox = officeBuild.getBox()
 
-      officeLabel = labelIns.addCss2dLabel(
-        {
-          x: buildBox.max.x / 2,
-          y: buildBox.max.y,
-          z: buildBox.max.z
-        },
-        `<span class="label">${model.object.name}</span>`
-      )
+      addTooltipToMesh('zuo3', '办公大厅-4F', sonLabel)
+      addTooltipToMesh('zuo1', '办公大厅-2F', sonLabel)
+
+      // officeLabel = labelIns.addCss2dLabel(
+      //   {
+      //     x: buildBox.max.x / 2,
+      //     y: buildBox.max.y,
+      //     z: buildBox.max.z
+      //   },
+      //   `<span class="label">${model.object.name}</span>`
+      // )
 
       // 添加标签动画
       if (labelIns?.label?.position) {
@@ -500,7 +661,7 @@ const loadOfficeBuild = () => {
         console.warn('labelIns.label.position 不存在，动画未执行')
       }
 
-      // ✅ 模型加载完成，返回 model
+      //  模型加载完成，返回 model
       resolve(model)
     })
   })
@@ -527,9 +688,9 @@ const officeMouseMove = () => {
           officeBuild.object.getObjectByName(item).traverse(child => {
             if (child.isMesh) {
               child.material = new THREE.MeshStandardMaterial({
-                color: 0x000000, // 十六进制数字，不要加引号
+                // color: 0x000000, // 十六进制数字，不要加引号
                 transparent: true,
-                opacity: 0.6,
+                opacity: 0.5,
                 emissive: new THREE.Color(0x000000), // 修正这里
                 emissiveIntensity: 3
               })
@@ -576,7 +737,7 @@ const officeFloorClick = () => {
           // 隐藏车和标签
           // TODO: 找到更方便的模型指定方式，而不是每次都遍历查找
           // carLabel.visible = false
-          officeLabel.visible = false
+          // officeLabel.visible = false
           // viewer.scene.children.find(item => item.name === '快递车').visible = false
           viewer.scene.children.find(o => o.name == 'cityv1').visible = false
           viewer.scene.children.find(o => o.name == '树').visible = false
@@ -781,7 +942,7 @@ const onReset = () => {
   viewer.scene.children.find(o => o.name === '人').position.set(13, 0, 18)
 
   // carLabel.visible = true
-  officeLabel.visible = true
+  // officeLabel.visible = true
   // viewer.scene.children.find(o => o.name === '快递车').visible = true
   viewer.scene.children.find(o => o.name === '树').visible = true
   viewer.scene.children.find(o => o.name === 'cityv1').visible = true
@@ -812,6 +973,9 @@ const onReset = () => {
 
 const startPos = new THREE.Vector3(0, 0, 0) // 起点
 
+// 是否处于人物视角
+const isFirstView = ref(false)
+
 const onDoor = () => {
   if (isRun.value) return
   isRun.value = true
@@ -823,16 +987,16 @@ const onDoor = () => {
     return
   }
 
-  const targetPos =
-    person.position.distanceTo(startPos) < 0.1
-      ? new THREE.Vector3(13, 0, 13) // 去门口
-      : startPos.clone() // 返回原位
+  const goingToDoor = person.position.distanceTo(startPos) < 0.1
 
-  const targetRotationY = targetPos.equals(startPos) ? 0 : Math.PI
+  const targetPos = goingToDoor
+    ? new THREE.Vector3(13, 0, 13) // 去门口
+    : startPos.clone() // 回到起点
+
+  const targetRotationY = goingToDoor ? Math.PI : 0
 
   personModel.startAnimal(6) // walk
 
-  // 清理旧动画
   gsap.killTweensOf([
     person.position,
     person.rotation,
@@ -851,15 +1015,76 @@ const onDoor = () => {
   const duration = 3
   const ease = 'power1.inOut'
 
-  // 人物移动 + 相机跟随
+  // --- 1. 第三人称移动（人物走动 + 相机跟随） ---
   tl.to(person.position, { ...targetPos, duration, ease })
   tl.to(person.rotation, { y: targetRotationY, duration: 1, ease }, 0)
   tl.to(
     viewer.camera.position,
-    { x: targetPos.x, y: targetPos.y + 2, z: targetPos.z + 5, duration, ease },
+    {
+      x: targetPos.x,
+      y: targetPos.y + 2,
+      z: targetPos.z + 5,
+      duration,
+      ease
+    },
     0
   )
   tl.to(viewer.controls.target, { ...targetPos, duration, ease }, 0)
+
+  // --- 2. 到达目标点后进入人物视角 ---
+  tl.add(() => {
+    // 确保使用最新的人物变换
+    person.updateMatrixWorld(true)
+
+    // 获取人物的世界方向
+    const personDirection = new THREE.Vector3()
+    person.getWorldDirection(personDirection)
+
+    // 头部高度
+    const eyeHeight = 1.6
+
+    // 计算相机位置（稍微在人物后方）
+    const cameraDistance = 3.3
+    const cameraPosition = new THREE.Vector3()
+    cameraPosition.copy(person.position)
+    cameraPosition.y += eyeHeight
+    cameraPosition.add(personDirection.clone().multiplyScalar(-cameraDistance)) // 在人物背后
+
+    // 计算视线目标（人物前方一定距离）
+    const lookAtDistance = 5
+    const lookAtPosition = new THREE.Vector3()
+    lookAtPosition.copy(cameraPosition)
+    lookAtPosition.add(personDirection.clone().multiplyScalar(lookAtDistance))
+
+    console.log('切换到第一人称视角:')
+    console.log('人物位置:', person.position)
+    console.log('人物朝向:', personDirection)
+    console.log('相机位置:', cameraPosition)
+    console.log('视线目标:', lookAtPosition)
+
+    // 平滑过渡到第一人称视角
+    gsap.to(viewer.camera.position, {
+      x: cameraPosition.x,
+      y: cameraPosition.y,
+      z: cameraPosition.z,
+      duration: 1,
+      ease: 'power1.inOut'
+    })
+
+    gsap.to(viewer.controls.target, {
+      x: lookAtPosition.x,
+      y: lookAtPosition.y,
+      z: lookAtPosition.z,
+      duration: 1,
+      ease: 'power1.inOut',
+      onUpdate: () => {
+        viewer.controls.update()
+      },
+      onComplete: () => {
+        isFirstView.value = true
+      }
+    })
+  }, duration)
 }
 
 /**
@@ -895,10 +1120,13 @@ const loadCar = () => {
 
     // 标签
     const box = model.getBox()
-    carLabel = labelIns.addCss2dLabel(
-      { x: box.max.x, y: box.max.y + 2, z: box.max.z },
-      `<span class="label">${obj.name}</span>`
-    )
+    // carLabel = labelIns.addCss2dLabel(
+    //   { x: box.max.x, y: box.max.y + 2, z: box.max.z },
+    //   // `<span class="label">${obj.name}</span>`
+    //   `<span class="label"></span>`
+    // )
+
+    carLabel = new THREE.Object3D()
 
     progressBarShow.value = false
   })
@@ -925,36 +1153,59 @@ const loadBird = () =>
     })
   })
 
-// 让一个模型绕另一个模型顺时针旋转
+// 让一个模型绕另一个模型旋转（可动态改变半径）
 function makeModelOrbitGSAP (
   movingModel,
   centerModel,
   radius = 5,
   duration = 10
 ) {
-  // 中心点
   const center = new THREE.Box3()
     .setFromObject(centerModel.object)
     .getCenter(new THREE.Vector3())
 
-  // 角度对象
-  const orbit = { angle: 0 }
+  // 可变参数对象
+  const params = {
+    angle: 0,
+    radius: radius, // <- 半径放这里，可实时修改
+    direction: 1
+  }
 
-  // 创建无限循环动画（顺时针）
-  return gsap.to(orbit, {
-    angle: -Math.PI * 2, // 一圈
-    duration, // 一圈用时
-    repeat: -1, // 无限循环
-    ease: 'none', // 匀速
+  const tween = gsap.to(params, {
+    angle: Math.PI * 2,
+    duration,
+    repeat: -1,
+    ease: 'none',
     onUpdate: () => {
+      const ang = params.angle * params.direction
       const { x: cx, y: cy, z: cz } = center
-      movingModel.object.position.set(
-        cx + radius * Math.cos(orbit.angle),
-        cy,
-        cz + radius * Math.sin(orbit.angle)
-      )
+
+      const x = cx + params.radius * Math.cos(ang)
+      const y = cy
+      const z = cz + params.radius * Math.sin(ang)
+
+      movingModel.object.position.set(x, y, z)
+
+      movingModel.object.lookAt(center)
     }
   })
+
+  return {
+    tween,
+
+    // ✔ 修改旋转方向
+    setDirection (dir) {
+      params.direction = dir
+    },
+    reverse () {
+      params.direction *= -1
+    },
+
+    // ✔ 动态改变半径
+    setRadius (r) {
+      params.radius = r
+    }
+  }
 }
 
 onMounted(async () => {
@@ -964,7 +1215,7 @@ onMounted(async () => {
   // 等两个模型都加载好
   const [office, bird] = await Promise.all([loadOfficeBuild(), loadBird()])
 
-  makeModelOrbitGSAP(bird, office, 10, 20) // 半径 10，一圈 5 秒
+  makeModelOrbitGSAP(bird, office, 19, 30) // 半径 ，一圈时间
 
   progressBarShow.value = false
 

@@ -1,12 +1,14 @@
 #container {
   height: calc(100vh - 75px);
-  width: calc(100%);
+  width: 100%;
   overflow: hidden;
   background-color: #f0f0f0;
-  // position: relative;
-  // position: relative;
-  transition: width 0.3s, height 0.3s;
   position: relative;
+  /*  防止 transition 抖动 */
+  transition: none;
+  /*  强制 GPU 复合层单独渲染 */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 #videoContainer {
@@ -39,14 +41,16 @@
   cursor: pointer;
   font-size: 20px;
   position: absolute;
-  z-index: 100;
+  z-index: 1000;
   top: 15px;
   right: 20px;
-  color: #00ffff;
+  color: #fff;
+  cursor: pointer;
 
+  user-select: none;
   &:hover {
     transform: scale(1.2);
-    color: lighten(#00ffff, 10%);
+    color: lighten(#123ca8, 10%);
   }
 }
 
@@ -107,4 +111,19 @@
 
 .fade-slide-leave-active {
   pointer-events: none; /* 离开动画时禁用点击 */
+}
+
+#container {
+  position: relative;
+  overflow: hidden;
+
+  // 🔍 调试用:找出黑条
+  > div {
+    outline: 1px solid red !important;
+  }
+
+  // ❌ 临时隐藏黑条
+  > div[style*='position: absolute']:not(.label-panel):not(.light-panel) {
+    background: transparent !important;
+  }
 }
