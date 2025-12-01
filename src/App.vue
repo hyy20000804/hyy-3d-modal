@@ -1,26 +1,48 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+
 const router = useRouter()
+const route = useRoute()
 
-const isIndex = ref(true)
+// 根据当前路由动态计算按钮文字
+const buttonText = computed(() => {
+  if (route.path === '/cold' || route.path === '/three') {
+    return '回到首页'
+  } else if (route.path === '/') {
+    return '去标签页'
+  }
+  return ''
+})
 
-const goToSecondary = () => {
-  isIndex.value = !isIndex.value
-  if (isIndex.value) {
+// 点击按钮跳转
+const handleButtonClick = () => {
+  if (route.path === '/cold' || route.path === '/three') {
     router.push('/')
-  } else {
-    router.push('/cold')
+  } else if (route.path === '/') {
+    router.push('/cold') // 或者你希望去的标签页路由
   }
 }
+
+onMounted(() => {
+  const el = document.querySelector('.el-container')
+  if (el) {
+    el.style.backgroundImage = 'url(/src/assets/bg.webp)'
+  }
+})
 </script>
+
 <template>
   <el-container>
     <el-header class="header-bar">
       <img src="@/assets/blue.png" alt="Logo" class="logo" />
       <span class="title">智慧园区</span>
-      <el-button class="switch-btn" @click="goToSecondary">
-        {{ !isIndex ? '回到首页' : '去到标签页' }}
+      <el-button
+        v-if="buttonText"
+        class="switch-btn"
+        @click="handleButtonClick"
+      >
+        {{ buttonText }}
       </el-button>
     </el-header>
 
@@ -31,6 +53,7 @@ const goToSecondary = () => {
     </el-container>
   </el-container>
 </template>
+
 <style scoped lang="less">
 .el-header {
   height: 30px;
@@ -38,7 +61,7 @@ const goToSecondary = () => {
 
 .el-container {
   background: #04172e;
-  background-image: url('@/assets/bg.webp');
+  // background-image: url('@/assets/bg.webp');
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;

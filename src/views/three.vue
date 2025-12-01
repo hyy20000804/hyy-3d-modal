@@ -1,5 +1,6 @@
 <template>
   <!-- 3D 场景容器 -->
+
   <div id="container" ref="container">
     <i
       :class="['iconfont', isFull ? 'icon-suoxiao1' : 'icon-fangda1']"
@@ -95,16 +96,16 @@
 <script setup>
 import { ref, onMounted, defineProps, onUnmounted, nextTick } from 'vue'
 import * as THREE from 'three'
-import Viewer from '@/common/threeModules/Viewer'
-import Lights from '@/common/threeModules/Lights'
-import ModelLoader from '@/common/threeModules/ModelLoader'
-import Labels from '@/common/threeModules/Labels'
+import Viewer from '@/three/threeModules/Viewer'
+import Lights from '@/three/threeModules/Lights'
+import ModelLoader from '@/three/threeModules/ModelLoader'
+import Labels from '@/three/threeModules/Labels'
 import { Water } from 'three/examples/jsm/objects/Water2'
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js'
 import gsap from 'gsap'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
-import SkyBoxs from '@/common/threeModules/SkyBoxs'
-import Label from './label.vue'
+import SkyBoxs from '@/three/threeModules/SkyBoxs'
+import Label from '@/three/components/color.vue'
 import {
   CSS2DRenderer,
   CSS2DObject
@@ -235,12 +236,6 @@ const addTooltipToMesh = (meshName, text) => {
 
 const labelHandle = () => {
   sonLabel.value.open()
-
-  nextTick(() => {
-    if (viewer.renderer) {
-      viewer.renderer.render(viewer.scene, viewer.camera)
-    }
-  })
 }
 
 const toggleFullScreen = () => {
@@ -306,7 +301,7 @@ const init = async () => {
   viewer.controls.maxPolarAngle = Math.PI / 2.1
   viewer.renderer.shadowMap.enabled = true
   viewer.renderer.shadowMap.type = THREE.PCFSoftShadowMap
-  viewer.controls.minDistance = 20
+  // viewer.controls.minDistance = 20
   viewer.controls.maxDistance = 150
 
   // 创建灯光
@@ -397,8 +392,6 @@ const loadPeople = () => {
     model.object.name = '人'
     personModel = model
     model.startAnimal(1)
-
-    highlightModel(model.object, 'Beta_Surface', '#75b05e', true)
 
     startPos.set(
       model.object.position.x,
@@ -627,8 +620,9 @@ const loadOfficeBuild = () => {
           v.name = 'zuo' + v.name
         })
 
-      highlightModel(officeBuild.object, 'zuo0', '#75b05e', true)
-      highlightModel(officeBuild.object, 'zuo4', '#75b05e', true)
+      // 绿色
+      // highlightModel(officeBuild.object, 'zuo0', '#75b05e', true)
+      // highlightModel(officeBuild.object, 'zuo4', '#75b05e', true)
 
       officeBuild.forEach(child => {
         if (child.isMesh) {
@@ -695,9 +689,9 @@ const officeMouseMove = () => {
           officeBuild.object.getObjectByName(item).traverse(child => {
             if (child.isMesh) {
               child.material = new THREE.MeshStandardMaterial({
-                color: 0x000000, // 十六进制数字，不要加引号
+                // color: 0x000000, // 十六进制数字，不要加引号
                 transparent: true,
-                opacity: 0.6,
+                opacity: 0.5,
                 emissive: new THREE.Color(0x000000), // 修正这里
                 emissiveIntensity: 3
               })
@@ -980,6 +974,9 @@ const onReset = () => {
 
 const startPos = new THREE.Vector3(0, 0, 0) // 起点
 
+// 是否处于人物视角
+const isFirstView = ref(false)
+
 const onDoor = () => {
   if (isRun.value) return
   isRun.value = true
@@ -991,16 +988,16 @@ const onDoor = () => {
     return
   }
 
-  const targetPos =
-    person.position.distanceTo(startPos) < 0.1
-      ? new THREE.Vector3(13, 0, 13) // 去门口
-      : startPos.clone() // 返回原位
+  const goingToDoor = person.position.distanceTo(startPos) < 0.1
 
-  const targetRotationY = targetPos.equals(startPos) ? 0 : Math.PI
+  const targetPos = goingToDoor
+    ? new THREE.Vector3(13, 0, 13) // 去门口
+    : startPos.clone() // 回到起点
+
+  const targetRotationY = goingToDoor ? Math.PI : 0
 
   personModel.startAnimal(6) // walk
 
-  // 清理旧动画
   gsap.killTweensOf([
     person.position,
     person.rotation,
@@ -1019,15 +1016,76 @@ const onDoor = () => {
   const duration = 3
   const ease = 'power1.inOut'
 
-  // 人物移动 + 相机跟随
+  // --- 1. 第三人称移动（人物走动 + 相机跟随） ---
   tl.to(person.position, { ...targetPos, duration, ease })
   tl.to(person.rotation, { y: targetRotationY, duration: 1, ease }, 0)
   tl.to(
     viewer.camera.position,
-    { x: targetPos.x, y: targetPos.y + 2, z: targetPos.z + 5, duration, ease },
+    {
+      x: targetPos.x,
+      y: targetPos.y + 2,
+      z: targetPos.z + 5,
+      duration,
+      ease
+    },
     0
   )
   tl.to(viewer.controls.target, { ...targetPos, duration, ease }, 0)
+
+  // --- 2. 到达目标点后进入人物视角 ---
+  tl.add(() => {
+    // 确保使用最新的人物变换
+    person.updateMatrixWorld(true)
+
+    // 获取人物的世界方向
+    const personDirection = new THREE.Vector3()
+    person.getWorldDirection(personDirection)
+
+    // 头部高度
+    const eyeHeight = 1.6
+
+    // 计算相机位置（稍微在人物后方）
+    const cameraDistance = 3.3
+    const cameraPosition = new THREE.Vector3()
+    cameraPosition.copy(person.position)
+    cameraPosition.y += eyeHeight
+    cameraPosition.add(personDirection.clone().multiplyScalar(-cameraDistance)) // 在人物背后
+
+    // 计算视线目标（人物前方一定距离）
+    const lookAtDistance = 5
+    const lookAtPosition = new THREE.Vector3()
+    lookAtPosition.copy(cameraPosition)
+    lookAtPosition.add(personDirection.clone().multiplyScalar(lookAtDistance))
+
+    console.log('切换到第一人称视角:')
+    console.log('人物位置:', person.position)
+    console.log('人物朝向:', personDirection)
+    console.log('相机位置:', cameraPosition)
+    console.log('视线目标:', lookAtPosition)
+
+    // 平滑过渡到第一人称视角
+    gsap.to(viewer.camera.position, {
+      x: cameraPosition.x,
+      y: cameraPosition.y,
+      z: cameraPosition.z,
+      duration: 1,
+      ease: 'power1.inOut'
+    })
+
+    gsap.to(viewer.controls.target, {
+      x: lookAtPosition.x,
+      y: lookAtPosition.y,
+      z: lookAtPosition.z,
+      duration: 1,
+      ease: 'power1.inOut',
+      onUpdate: () => {
+        viewer.controls.update()
+      },
+      onComplete: () => {
+        isFirstView.value = true
+      }
+    })
+  }, duration)
 }
 
 /**
@@ -1096,36 +1154,59 @@ const loadBird = () =>
     })
   })
 
-// 让一个模型绕另一个模型顺时针旋转
+// 让一个模型绕另一个模型旋转（可动态改变半径）
 function makeModelOrbitGSAP (
   movingModel,
   centerModel,
   radius = 5,
   duration = 10
 ) {
-  // 中心点
   const center = new THREE.Box3()
     .setFromObject(centerModel.object)
     .getCenter(new THREE.Vector3())
 
-  // 角度对象
-  const orbit = { angle: 0 }
+  // 可变参数对象
+  const params = {
+    angle: 0,
+    radius: radius, // <- 半径放这里，可实时修改
+    direction: 1
+  }
 
-  // 创建无限循环动画（顺时针）
-  return gsap.to(orbit, {
-    angle: -Math.PI * 2, // 一圈
-    duration, // 一圈用时
-    repeat: -1, // 无限循环
-    ease: 'none', // 匀速
+  const tween = gsap.to(params, {
+    angle: Math.PI * 2,
+    duration,
+    repeat: -1,
+    ease: 'none',
     onUpdate: () => {
+      const ang = params.angle * params.direction
       const { x: cx, y: cy, z: cz } = center
-      movingModel.object.position.set(
-        cx + radius * Math.cos(orbit.angle),
-        cy,
-        cz + radius * Math.sin(orbit.angle)
-      )
+
+      const x = cx + params.radius * Math.cos(ang)
+      const y = cy
+      const z = cz + params.radius * Math.sin(ang)
+
+      movingModel.object.position.set(x, y, z)
+
+      movingModel.object.lookAt(center)
     }
   })
+
+  return {
+    tween,
+
+    // ✔ 修改旋转方向
+    setDirection (dir) {
+      params.direction = dir
+    },
+    reverse () {
+      params.direction *= -1
+    },
+
+    // ✔ 动态改变半径
+    setRadius (r) {
+      params.radius = r
+    }
+  }
 }
 
 onMounted(async () => {
@@ -1135,7 +1216,7 @@ onMounted(async () => {
   // 等两个模型都加载好
   const [office, bird] = await Promise.all([loadOfficeBuild(), loadBird()])
 
-  makeModelOrbitGSAP(bird, office, 10, 20) // 半径 10，一圈 5 秒
+  makeModelOrbitGSAP(bird, office, 19, 30) // 半径 ，一圈时间
 
   progressBarShow.value = false
 
@@ -1159,5 +1240,5 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="less">
-@import './index.less';
+@import './three.less';
 </style>
