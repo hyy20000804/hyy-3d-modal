@@ -1,8 +1,12 @@
 <template>
   <div id="cesiumContainer" class="container"></div>
 
-  <div v-if="showPreview" class="preview-overlay" @click="showPreview = false">
-    <img :src="previewImage" alt="城市预览" class="preview-img" />
+  <div
+    v-if="showPreview"
+    class="preview-overlay active"
+    @click="showPreview = false"
+  >
+    <img :src="previewImage" alt="城市预览" />
   </div>
 </template>
 
@@ -11,6 +15,7 @@ import { onMounted, onBeforeUnmount, ref } from 'vue'
 import * as Cesium from 'cesium'
 import { useRouter } from 'vue-router'
 import whiteBg from '@/assets/white.png'
+import { ElNotification } from 'element-plus'
 
 const router = useRouter()
 const showPreview = ref(false) // 控制弹窗显示
@@ -18,6 +23,7 @@ const previewImage = ref('') // 预览图 URL
 
 let viewer = null
 let handler = null // 鼠标事件处理
+let beijingEntity = null
 
 const cities = ref([
   { name: '北京', lon: 116.4074, lat: 39.9042 },
@@ -91,27 +97,52 @@ const defaultView = () => {
 }
 //2.加载中国边界线
 const borderHandle = async () => {
-  const china = await Cesium.GeoJsonDataSource.load('/china-border.json', {
+  // 1. 加载国界和省界 (你原来的代码)
+  const china = await Cesium.GeoJsonDataSource.load('/china.json', {
     stroke: Cesium.Color.YELLOW,
     fill: Cesium.Color.TRANSPARENT,
-    strokeWidth: 2, // 这里控制边境线的粗细
+    strokeWidth: 2,
     clampToGround: true
   })
-
   viewer.dataSources.add(china)
-
-  // 设置边界显示高度---否则边境线不显示
   china.entities.values.forEach(entity => {
-    entity.polygon.height = 0 // 控制的是z轴坐标
+    if (entity.polygon) entity.polygon.height = 0
   })
+
+  // 加载主要城市边界
+  await loadCities()
+}
+const loadCities = async () => {
+  // 假设你有一个需要展示的城市代码数组，例如北京、上海、广州的市级代码
+  const cityCodes = ['110100', '310100', '440100']
+
+  // 使用Promise.all并行加载所有选定的城市文件，提高效率
+  const loadPromises = cityCodes.map(code =>
+    Cesium.GeoJsonDataSource.load(`/geometryCouties/${code}.json`, {
+      stroke: Cesium.Color.BLUE, // 城市边界用蓝色
+      fill: Cesium.Color.TRANSPARENT,
+      strokeWidth: 1, // 城市线比国界线细一些
+      clampToGround: true
+    }).then(dataSource => {
+      viewer.dataSources.add(dataSource)
+      // 同样需要设置高度，否则可能不显示
+      dataSource.entities.values.forEach(entity => {
+        if (entity.polygon) {
+          entity.polygon.height = 0
+        }
+      })
+      return dataSource
+    })
+  )
+
+  // 等待所有城市加载完成
+  await Promise.all(loadPromises)
+  console.log('所有城市边界加载完成')
 }
 
 //3.hover效果
 const hoverHandle = () => {
   handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas)
-
-  // 保存北京实体引用，避免每次遍历
-  let beijingEntity = null
 
   cities.value.forEach(city => {
     const entityConfig = {
@@ -139,7 +170,7 @@ const hoverHandle = () => {
         image: whiteBg,
         scale: 0.01,
         verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-        pixelOffset: new Cesium.Cartesian2(0, 30),
+        pixelOffset: new Cesium.Cartesian2(0, 37),
         color: new Cesium.Color(1.0, 1.0, 1.0, 0.7),
         show: false
       }
@@ -152,7 +183,11 @@ const hoverHandle = () => {
   handler.setInputAction(movement => {
     const picked = viewer.scene.pick(movement.endPosition)
 
-    if (picked && picked.id && cities.value.some(c => c.name === picked.id.name)) {
+    if (
+      picked &&
+      picked.id &&
+      cities.value.some(c => c.name === picked.id.name)
+    ) {
       document.body.style.cursor = 'pointer'
       if (picked.id.name === '北京') {
         beijingEntity.billboard.show = true
@@ -191,10 +226,23 @@ const hoverHandle = () => {
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK)
 }
 
+const firstHandle = () => {
+  const key = 'hasShown3DNotification'
+  if (!localStorage.getItem(key)) {
+    ElNotification({
+      title: 'Success',
+      message: '恭喜，你已进入3d世界！',
+      type: 'success'
+    })
+    localStorage.setItem(key, 'true')
+  }
+}
+
 onMounted(async () => {
-  init()
+  firstHandle()
+  await init()
   defaultView()
-  borderHandle()
+  await borderHandle()
   hoverHandle()
 })
 
@@ -204,33 +252,42 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="less">
 #cesiumContainer {
   width: 100%;
-  height: 100%;
+  height: calc(100vh - 75px);
   overflow: hidden;
 }
 
 .preview-overlay {
   position: absolute;
-  bottom: 20px;
+  bottom: 30px; // 距离底部
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(20px); // 初始微下移
   z-index: 1000;
-  pointer-events: none; /* 避免阻挡鼠标 */
+  pointer-events: none; // 避免阻挡鼠标操作
   opacity: 0;
-  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
-}
+  transition: all 0.35s cubic-bezier(0.25, 0.8, 0.25, 1); // 平滑动画
+  display: block;
 
-.preview-overlay img {
-  width: 200px;
-  height: auto;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
+  img {
+    width: 220px; // 略微放大
+    max-width: 80vw; // 响应式
+    height: auto;
+    border-radius: 12px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+    transform: scale(0.95);
+    transition: all 0.35s ease-in-out;
+  }
 
-.preview-overlay[style*='display: block'] {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  // 当显示时
+  &.active {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+
+    img {
+      transform: scale(1);
+    }
+  }
 }
 </style>
