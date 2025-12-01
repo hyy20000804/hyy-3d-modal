@@ -32,9 +32,17 @@
 
 # 示例如下
 
-<img src="./src/assets/all.png" alt="示例图片" width="600">
+### 首页
 
-<img src="./src/assets/cold.png" alt="示例图片" width="600">
+<img src="./src/assets/index.png" alt="首页图片" width="600">
+
+### 3d 页
+
+<img src="./src/assets/three.png" alt="3d图片" width="600">
+
+### 标签页
+
+<img src="./src/assets/cold.png" alt="标签图片" width="600">
 
 # 安装依赖
 
