@@ -14,7 +14,7 @@
 import { onMounted, onBeforeUnmount, ref } from 'vue'
 import * as Cesium from 'cesium'
 import { useRouter } from 'vue-router'
-import whiteBg from '@/assets/white.png'
+import whiteBg from '@/assets/three.png'
 import { ElNotification } from 'element-plus'
 
 const router = useRouter()
@@ -23,7 +23,6 @@ const previewImage = ref('') // 预览图 URL
 
 let viewer = null
 let handler = null // 鼠标事件处理
-let beijingEntity = null
 
 const cities = ref([
   { name: '北京', lon: 116.4074, lat: 39.9042 },
@@ -142,6 +141,8 @@ const loadCities = async () => {
 
 //3.hover效果
 const hoverHandle = () => {
+  let beijingEntity = null
+
   handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas)
 
   cities.value.forEach(city => {
@@ -172,7 +173,7 @@ const hoverHandle = () => {
         verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
         pixelOffset: new Cesium.Cartesian2(0, 37),
         color: new Cesium.Color(1.0, 1.0, 1.0, 0.7),
-        show: false
+        show: true
       }
     }
 
