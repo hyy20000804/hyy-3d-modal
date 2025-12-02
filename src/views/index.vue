@@ -56,7 +56,9 @@ const init = async () => {
     homeButton: false,
     navigationHelpButton: false,
     fullscreenButton: false,
-    selectionIndicator: false
+    selectionIndicator: false,
+
+    creditContainer: document.createElement('div') // 隐藏 Cesium ion credit
 
     // 写在这里没用
     // imageryProvider: new Cesium.UrlTemplateImageryProvider({
