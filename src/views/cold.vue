@@ -21,7 +21,7 @@ const coldModel = ref('/glb/cold.glb')
 <style scoped>
 .allView {
   width: 100%;
-  height: calc(100%);
+  height: calc(100vh - 80px);
   position: relative;
 }
 </style>

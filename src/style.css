@@ -9,4 +9,5 @@ body {
 }
 :root {
   --hyy-headerHeight: 72px !important;
+  --hyy-color: var(--hyy-color);
 }

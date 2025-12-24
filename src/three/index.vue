@@ -157,6 +157,7 @@ const fengNames = [
  */
 
 // 添加标签的函数
+// 修改父组件的 addTooltipToMesh 函数
 const addTooltipToMesh = (meshName, name, position = {}) => {
   console.log('addTooltipToMesh 被调用:', { meshName, position })
 
@@ -171,18 +172,13 @@ const addTooltipToMesh = (meshName, name, position = {}) => {
   labelDiv.className = 'model-label'
   labelDiv.style.pointerEvents = 'auto'
 
-  // 内层真实内容（偏移写在这里）
-  // 内层真实内容（添加特定类名）
+  // 内层真实内容（添加特定类名和数据属性）
   const innerDiv = document.createElement('div')
   innerDiv.className = 'model-label-inner' // 添加类名
+  innerDiv.dataset.labelContent = 'true' // 添加数据属性，便于识别
   innerDiv.textContent = name
   innerDiv.style.fontWeight = 'bold'
   innerDiv.style.whiteSpace = 'nowrap'
-  innerDiv.style.background = 'rgba(0,0,0,0.6)'
-  innerDiv.style.color = '#fff'
-  innerDiv.style.fontSize = '14px'
-  innerDiv.style.padding = '4px 8px'
-  innerDiv.style.borderRadius = '4px'
   innerDiv.style.pointerEvents = 'auto'
 
   // --- 偏移逻辑（写在 margin 上，100% 生效） ---
@@ -223,7 +219,18 @@ const addTooltipToMesh = (meshName, name, position = {}) => {
   const label = new CSS2DObject(labelDiv)
   targetMesh.add(label)
 
-  if (colorSON.value) colorSON.value.labels.push(label)
+  // 添加数据属性以便识别
+  label.userData = {
+    isCustomLabel: true,
+    innerElement: innerDiv
+  }
+
+  if (colorSON.value) {
+    // 使用 addLabel 方法，它会自动应用样式
+    colorSON.value.addLabel(label)
+  }
+
+  console.log('标签创建完成')
 }
 
 /**
