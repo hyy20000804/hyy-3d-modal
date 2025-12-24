@@ -82,6 +82,74 @@ import ColorSON from './components/color.vue'
 const colorSON = ref(null)
 const modelDialog = ref()
 
+const blueTubeNames = [
+  'Tube506',
+  'Tube509',
+  'Tube510',
+  'Tube678',
+  'Tube679',
+  'Tube681',
+  'Tube659',
+  'Tube660',
+  'Tube504',
+  'Tube507',
+  'Tube682',
+  'Tube683',
+  'Tube514',
+  'Tube516',
+  'Tube517',
+  'Tube518',
+  'Tube519',
+  'Tube520',
+  'Tube521',
+  'Tube522',
+  'Tube523',
+  'Tube524',
+  'Tube525',
+  'Tube515',
+  'Tube585',
+  'Tube586',
+  'Tube587',
+  'Tube588',
+  'Tube642',
+  'Tube643',
+  'Tube644',
+  'Tube645',
+  'Tube670',
+  'Tube589',
+  'Tube673',
+  'Tube676',
+  'Tube677',
+  'ltcs_(17)',
+  'ltcs_(1)',
+  'ltcs_(10)',
+  'ltcs_(18)',
+  'ltcs_(19)',
+  'ltcs_(2)',
+  'ltcs_(20)',
+  'ltcs_(21)',
+  'ltcs_(6)',
+  'ltcs_(7)',
+  'ltcs_(8)',
+  'ltcs_(9)',
+  'ltcs_(25)',
+  'ltcs_(26)',
+  'ltcs_(27)',
+  'ltcs_(28)',
+  'ltcs_(29)',
+  'ltcs_(30)',
+  'ltcs_(36)'
+]
+
+const fengNames = [
+  '缩放比例029',
+  '缩放比例031',
+  '缩放比例026',
+  '缩放比例027',
+  '缩放比例028',
+  '缩放比例030'
+]
+
 /**
  * 给指定 Mesh 名称添加可编辑 Tooltip
  * @param meshName - 目标 Mesh 名称
@@ -433,6 +501,69 @@ function setCameraViewA (
   viewer.controls.target.copy(center)
 }
 
+function createPipeFlowMaterial ({
+  tubeColor = '#59f5ff',
+  flowColor = '#a8dfff'
+} = {}) {
+  const flowTexture = new THREE.TextureLoader().load('/images/water.png')
+  flowTexture.wrapS = flowTexture.wrapT = THREE.RepeatWrapping
+  flowTexture.repeat.set(1, 6)
+
+  const material = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    uniforms: {
+      time: { value: 0 },
+      flowMap: { value: flowTexture },
+      tubeColor: { value: new THREE.Color(tubeColor) },
+      flowColor: { value: new THREE.Color(flowColor) },
+      opacity: { value: 0.9 }
+    },
+    vertexShader: `
+			varying vec2 vUv;
+			void main() {
+				vUv = uv;
+				gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+			}
+		`,
+    fragmentShader: `
+uniform sampler2D flowMap;
+uniform float time;
+uniform vec3 tubeColor;
+uniform vec3 flowColor;
+varying vec2 vUv;
+
+void main() {
+	float outerAlpha = 0.15;
+
+	vec2 uv = vUv;
+	uv.x -= time * 0.9;
+
+	float tex = texture2D(flowMap, uv).r;
+float flow = smoothstep(0.5, 0.8, tex);
+flow = pow(flow, 3.0);
+
+
+	float center = abs(vUv.y - 0.5);
+	// 增加流体区域高度
+float innerMask = smoothstep(0.35, 0.0, center);
+
+//控制“水流厚度”视觉
+	vec3 finalColor =
+		tubeColor * (1.0 - innerMask) +
+		flowColor * flow * innerMask * 5.5;
+
+	float alpha = outerAlpha + flow * innerMask;
+
+	gl_FragColor = vec4(finalColor, alpha);
+}
+		`
+  })
+
+  return material
+}
+
 const loadOfficeBuild = async () => {
   showLoading()
   modelLoader.loadModelToScene(modalUrl, async model => {
@@ -683,61 +814,89 @@ const loadOfficeBuild = async () => {
       highlightModel(officeBuild.object, 'Part041', '#145666', true)
     }
 
+    model.object.traverse(obj => {
+      if (!obj.isMesh) return
+
+      const name = obj.name || ''
+
+      // ltcs 开头的，用 蓝色内流
+      if (blueTubeNames.includes(name)) {
+        obj.material = createPipeFlowMaterial({
+          tubeColor: '#59f5ff',
+          flowColor: '#4aaaff' // 蓝色内流
+        })
+        viewer.addAnimate({
+          fun: mesh => {
+            const uniforms = mesh.material?.uniforms
+            if (uniforms?.time) uniforms.time.value += 0.01
+          },
+          content: obj
+        })
+        return
+      }
+
+      // Tube 开头的，用 红色内流
+      if (name.startsWith('Tube')) {
+        obj.material = createPipeFlowMaterial({
+          tubeColor: '#ff5959',
+          flowColor: '#ff3030' // 红色内流
+        })
+        viewer.addAnimate({
+          fun: mesh => {
+            const uniforms = mesh.material?.uniforms
+            if (uniforms?.time) uniforms.time.value += 0.01
+          },
+          content: obj
+        })
+        return
+      }
+
+      // 风扇
+      if (fengNames.includes(name)) {
+        // 建议：确认这是一个可旋转的节点
+        obj.rotation.order = 'YXZ' // 防止万向节问题（可选）
+
+        viewer.addAnimate({
+          content: obj,
+          fun: fan => {
+            // 👉 根据模型方向选轴
+            // fan.rotation.y += 0.08 // 常见冷却塔 / 立式风扇
+            fan.rotation.x += 0.08 // 如果你发现方向不对，换这个
+          }
+        })
+      }
+    })
+
+    // const needRemove = []
+
+    // model.object.traverse(obj => {
+    //   if (
+    //     obj.name &&
+    //     obj.name.includes('Capsule') &&
+    //     obj.name !== 'Capsule018' && obj.name !== 'Capsule040'
+    //   ) {
+    //     needRemove.push(obj)
+    //   }
+    // })
+
+    // needRemove.forEach(obj => {
+    //   // 从父级移除
+    //   obj.parent?.remove(obj)
+
+    //   // 安全释放（只对 Mesh）
+    //   if (obj.isMesh) {
+    //     obj.geometry?.dispose()
+
+    //     if (Array.isArray(obj.material)) {
+    //       obj.material.forEach(m => m.dispose())
+    //     } else {
+    //       obj.material?.dispose()
+    //     }
+    //   }
+    // })
+
     hideLoading()
   })
-}
-
-// 1️⃣ 红色
-const redHighlight = {
-  color: 0xff0000, // 主色调
-  emissive: 0xff0000, // 发光颜色
-  emissiveIntensity: 0.6 // 发光强度
-}
-
-// 2️⃣ 淡红色
-const lightRedHighlight = {
-  color: 0xff6666, // 主色调：红色更明显
-  emissive: 0xff3333, // 发光颜色：偏红
-  emissiveIntensity: 0.3 // 发光强度：较弱
-}
-
-// 3️⃣ 绿色
-const greenHighlight = {
-  color: 0x00ff00,
-  emissive: 0x00ff00,
-  emissiveIntensity: 0.6
-}
-
-// 4️⃣ 淡绿色
-const lightGreenHighlight = {
-  color: 0x88ff88,
-  emissive: 0x44ff44,
-  emissiveIntensity: 0.3
-}
-
-const applyHighlight = (mesh, type) => {
-  mesh.material = mesh.material.clone() // 避免共用材质污染
-  let cfg
-  switch (type) {
-    case 'red':
-      cfg = redHighlight
-      break
-    case 'lightRed':
-      cfg = lightRedHighlight
-      break
-    case 'green':
-      cfg = greenHighlight
-      break
-    case 'lightGreen':
-      cfg = lightGreenHighlight
-      break
-  }
-
-  mesh.material.color.setHex(cfg.color)
-  if (mesh.material.emissive) {
-    mesh.material.emissive.setHex(cfg.emissive)
-    mesh.material.emissiveIntensity = cfg.emissiveIntensity
-  }
 }
 
 // 鼠标点击事件

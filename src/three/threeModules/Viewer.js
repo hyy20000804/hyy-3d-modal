@@ -69,6 +69,9 @@ export default class Viewer {
     this.#initSkybox()
     this.#initLight()
 
+    // 初始化waterMeshRef
+    this.waterMeshRef = null
+
     let lastTime = 0
     const animate = time => {
       this._animationId = requestAnimationFrame(animate)
@@ -78,9 +81,31 @@ export default class Viewer {
 
       this.#updateDom()
       this.#renderDom()
+
+      // 更新所有动画事件
       this.animateEventList.forEach(event => {
         event.fun && event.content && event.fun(event.content)
       })
+
+      // 更新水流材质（关键修复）
+      if (
+        this.waterMeshRef &&
+        this.waterMeshRef.material &&
+        this.waterMeshRef.material.uniforms
+      ) {
+        // 确保time uniform存在
+        if (this.waterMeshRef.material.uniforms.time) {
+          this.waterMeshRef.material.uniforms.time.value += 0.016 // 使用固定增量，确保流畅
+        }
+      }
+
+      // 更新风扇材质（关键修复）
+      if (this.fanMeshRefList) {
+        this.fanMeshRefList.forEach(fan => {
+          // 根据模型方向选择轴向旋转，Z/X/Y 任选
+          fan.rotation.y += 0.02 // 根据实际效果调整轴和速度
+        })
+      }
     }
 
     animate()
@@ -113,6 +138,12 @@ export default class Viewer {
     // 显示坐标轴(x轴: 红色; y轴: 绿色; z轴: 蓝色)
     // x轴水平方向(右正); y轴垂直方向(上正); z轴垂直xy平面即屏幕(外正)
     this.scene.add(new AxesHelper(100))
+  }
+
+  // 添加设置waterMeshRef的方法
+  setWaterMesh (waterMesh) {
+    this.waterMeshRef = waterMesh
+    console.log('Water mesh set:', waterMesh)
   }
   /**
    * 添加状态检测
@@ -397,6 +428,14 @@ export default class Viewer {
         this.css3dScene.remove(this.css3dScene.children[0])
       }
       this.css3dScene = null
+    }
+
+    // 清理waterMeshRef
+    if (this.waterMeshRef) {
+      if (this.waterMeshRef.material) {
+        this.waterMeshRef.material.dispose()
+      }
+      this.waterMeshRef = null
     }
 
     // 清空动画事件

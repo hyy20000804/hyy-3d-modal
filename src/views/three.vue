@@ -909,6 +909,9 @@ const loadSwimmingPool = () => {
 
     const waterTexLoader = new THREE.TextureLoader()
     const oldWater = model.object.getObjectByName('voda_0')
+
+    console.log('oldWater:', oldWater)
+
     const waterMesh = new Water(oldWater.children[0].geometry, {
       textureWidth: 512,
       textureHeight: 512,
